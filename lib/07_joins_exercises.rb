@@ -150,33 +150,24 @@ def prolific_actors
   # Obtain a list in alphabetical order of actors who've had at least 15
   # starring roles.
   execute(<<-SQL)
-
     SELECT
       actors.name
     FROM
       actors
-    JOIN
-      castings ON actors.id = castings.actor_id
-    GROUP BY
-      actors.name, castings.ord
-    HAVING
-      count(*) > 15 AND castings.ord = 1
-
-    -- gives us name of all castings where actor is ord 1
-    -- SELECT
-    --   actors.name
-    -- FROM
-    --   actors
-    -- JOIN
-    --   castings ON actors.id = castings.actor_id
-    -- WHERE
-    --   castings.ord = 1
-    -- GROUP BY
-    --   actors.name
-    -- HAVING
-    --   COUNT(*) >= 15
-    -- ORDER BY
-    --   actors.name
+    WHERE
+      actors.id IN (
+        SELECT
+          castings.actor_id
+        FROM
+          castings
+        GROUP BY 
+          -- it's possible to group by multiple columns.
+          -- https://stackoverflow.com/questions/2421388/using-group-by-on-multiple-columns
+          castings.ord, castings.actor_id
+        HAVING
+          count(*) >= 15 AND castings.ord = 1
+        )
+        ORDER BY actors.name
   SQL
 end
 
@@ -184,11 +175,48 @@ def films_by_cast_size
   # List the films released in the year 1978 ordered by the number of actors
   # in the cast (descending), then by title (ascending).
   execute(<<-SQL)
+    SELECT
+      movies.title, COUNT(*)
+    FROM
+      castings
+    JOIN
+      movies ON castings.movie_id = movies.id
+    GROUP BY
+      castings.movie_id, movies.yr, movies.title -- number of castings = number of actors
+    HAVING
+      movies.yr = 1978
+    ORDER BY
+      COUNT(*) DESC, movies.title ASC  
   SQL
 end
 
 def colleagues_of_garfunkel
   # List all the people who have played alongside 'Art Garfunkel'.
   execute(<<-SQL)
+    -- Use a join to get all castings/actors in any of those movies.
+    SELECT
+      actors.name
+    FROM
+      castings
+    JOIN
+      actors ON castings.actor_id = actors.id
+    WHERE
+      actors.name != 'Art Garfunkel' AND castings.movie_id IN (
+      -- Get all movies (movie ids) for films Art Garfunkel played in.
+      SELECT 
+        castings.movie_id
+      FROM
+        castings
+      WHERE
+        castings.actor_id = (
+          -- get actor id
+          SELECT
+            actors.id
+          FROM
+            actors
+          WHERE
+            actors.name = 'Art Garfunkel'
+        )
+      )
   SQL
 end
